@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deskline — IT Ticket Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Rail -->
+  <aside class="rail">
+    <div class="rail-top">
+      <div class="brand">
+        <span class="brand-mark">◉</span>
+        <span class="brand-name">Deskline</span>
+      </div>
+      <div class="brand-sub">IT Ticket Desk</div>
+    </div>
+
+    <nav class="rail-nav">
+      <button class="rail-item is-active" data-view="board">
+        <span class="rail-item-icon">▤</span> Board
+      </button>
+      <button class="rail-item" data-view="new">
+        <span class="rail-item-icon">✎</span> New Ticket
+      </button>
+    </nav>
+
+    <div class="rail-stats">
+      <div class="rail-stats-label">Queue Snapshot</div>
+      <div class="stat-row">
+        <span class="stat-dot dot-open"></span>
+        <span class="stat-name">Open</span>
+        <span class="stat-num" id="statOpen">0</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-dot dot-progress"></span>
+        <span class="stat-name">In Progress</span>
+        <span class="stat-num" id="statProgress">0</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-dot dot-resolved"></span>
+        <span class="stat-name">Resolved</span>
+        <span class="stat-num" id="statResolved">0</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-dot dot-closed"></span>
+        <span class="stat-name">Closed</span>
+        <span class="stat-num" id="statClosed">0</span>
+      </div>
+      <div class="rail-divider"></div>
+      <div class="stat-row stat-row-critical">
+        <span class="stat-name">Critical open</span>
+        <span class="stat-num" id="statCritical">0</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-name">Avg. age (open)</span>
+        <span class="stat-num" id="statAvgAge">—</span>
+      </div>
+    </div>
+
+    <div class="rail-bottom">
+      <button class="ghost-btn" id="seedBtn" title="Load sample tickets">Load sample data</button>
+      <button class="ghost-btn ghost-danger" id="wipeBtn" title="Erase all tickets">Clear all</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- BOARD VIEW -->
+    <section class="view" id="view-board">
+      <header class="view-header">
+        <div>
+          <h1>Ticket Board</h1>
+          <p class="view-sub">Every ticket currently tracked by the desk.</p>
+        </div>
+        <button class="primary-btn" id="openNewFromBoard">+ New ticket</button>
+      </header>
+
+      <div class="toolbar">
+        <input type="search" id="searchInput" placeholder="Search by title, requester, or ticket ID…" />
+
+        <div class="chip-group" id="statusChips" data-group="status">
+          <button class="chip is-active" data-value="all">All status</button>
+          <button class="chip" data-value="Open">Open</button>
+          <button class="chip" data-value="In Progress">In Progress</button>
+          <button class="chip" data-value="Resolved">Resolved</button>
+          <button class="chip" data-value="Closed">Closed</button>
+        </div>
+
+        <select id="priorityFilter">
+          <option value="all">All priority</option>
+          <option value="Critical">Critical</option>
+          <option value="High">High</option>
+          <option value="Medium">Medium</option>
+          <option value="Low">Low</option>
+        </select>
+
+        <select id="sortBy">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="priority">Priority (high → low)</option>
+        </select>
+      </div>
+
+      <div class="ticket-table-wrap">
+        <table class="ticket-table">
+          <thead>
+            <tr>
+              <th class="col-id">Ticket</th>
+              <th class="col-title">Summary</th>
+              <th>Category</th>
+              <th>Priority</th>
+              <th>Status</th>
+              <th>Requester</th>
+              <th>Opened</th>
+              <th class="col-actions"></th>
+            </tr>
+          </thead>
+          <tbody id="ticketTableBody">
+          </tbody>
+        </table>
+        <div class="empty-state" id="emptyState">
+          <div class="empty-mark">◌</div>
+          <p><strong>No tickets match this view.</strong></p>
+          <p class="empty-sub">Adjust your filters, or open a new ticket to get the queue started.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- NEW TICKET VIEW -->
+    <section class="view" id="view-new" hidden>
+      <header class="view-header">
+        <div>
+          <h1>Open a New Ticket</h1>
+          <p class="view-sub">Give the desk enough detail to act on the first pass.</p>
+        </div>
+      </header>
+
+      <form class="ticket-form" id="ticketForm">
+        <div class="form-grid">
+          <label class="field field-wide">
+            <span class="field-label">Summary</span>
+            <input type="text" id="fTitle" placeholder="e.g. VPN drops every few minutes on laptop" required>
+          </label>
+
+          <label class="field field-wide">
+            <span class="field-label">Details</span>
+            <textarea id="fDescription" rows="5" placeholder="What's happening, what you expected, and anything you've already tried…" required></textarea>
+          </label>
+
+          <label class="field">
+            <span class="field-label">Requester name</span>
+            <input type="text" id="fRequester" placeholder="Full name" required>
+          </label>
+
+          <label class="field">
+            <span class="field-label">Department</span>
+            <input type="text" id="fDepartment" placeholder="e.g. Finance">
+          </label>
+
+          <label class="field">
+            <span class="field-label">Category</span>
+            <select id="fCategory">
+              <option>Hardware</option>
+              <option>Software</option>
+              <option>Network</option>
+              <option>Access &amp; Accounts</option>
+              <option>Email</option>
+              <option>Other</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field-label">Priority</span>
+            <select id="fPriority">
+              <option>Low</option>
+              <option selected>Medium</option>
+              <option>High</option>
+              <option>Critical</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="ghost-btn" id="cancelNew">Cancel</button>
+          <button type="submit" class="primary-btn">Submit ticket</button>
+        </div>
+      </form>
+    </section>
+
+  </main>
+</div>
+
+<!-- Ticket detail drawer -->
+<div class="drawer-backdrop" id="drawerBackdrop">
+  <aside class="drawer" id="drawer" role="dialog" aria-modal="true">
+    <div class="drawer-head">
+      <div>
+        <div class="drawer-id" id="drawerId">TCK-0000</div>
+        <h2 id="drawerTitle">Ticket title</h2>
+      </div>
+      <button class="icon-btn" id="drawerClose" aria-label="Close">✕</button>
+    </div>
+
+    <div class="drawer-meta">
+      <div class="meta-item">
+        <span class="meta-label">Status</span>
+        <select id="drawerStatus"></select>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Priority</span>
+        <select id="drawerPriority"></select>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Category</span>
+        <span class="meta-value" id="drawerCategory">—</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Requester</span>
+        <span class="meta-value" id="drawerRequester">—</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Department</span>
+        <span class="meta-value" id="drawerDepartment">—</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Opened</span>
+        <span class="meta-value" id="drawerOpened">—</span>
+      </div>
+    </div>
+
+    <div class="drawer-section">
+      <span class="drawer-section-label">Details</span>
+      <p class="drawer-description" id="drawerDescription"></p>
+    </div>
+
+    <div class="drawer-section">
+      <span class="drawer-section-label">Activity</span>
+      <div class="activity-log" id="activityLog"></div>
+      <form class="activity-form" id="activityForm">
+        <input type="text" id="activityInput" placeholder="Add a note or update…">
+        <button type="submit" class="primary-btn primary-btn-sm">Add</button>
+      </form>
+    </div>
+
+    <div class="drawer-footer">
+      <button class="ghost-btn ghost-danger" id="deleteTicketBtn">Delete ticket</button>
+    </div>
+  </aside>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
