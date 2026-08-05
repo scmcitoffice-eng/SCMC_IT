@@ -5,6 +5,17 @@
 
 const STORAGE_KEY = 'deskline_tickets';
 const COUNTER_KEY = 'deskline_ticket_counter';
+const ADMIN_PASSWORD = 'StC@milluS_26';
+
+function requireAdminPassword(actionLabel){
+  const input = prompt(`Enter the admin password to ${actionLabel}:`);
+  if (input === null) return false; // cancelled
+  if (input !== ADMIN_PASSWORD){
+    alert('Incorrect password. Action cancelled.');
+    return false;
+  }
+  return true;
+}
 
 const STATUSES = ['Open', 'In Progress', 'Resolved', 'Closed'];
 const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
@@ -336,6 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('deleteTicketBtn').addEventListener('click', () => {
     if (!activeDrawerId) return;
+    if (!requireAdminPassword('delete this ticket')) return;
     if (!confirm('Delete this ticket? This can\'t be undone.')) return;
     tickets = tickets.filter(t => t.id !== activeDrawerId);
     saveTickets();
@@ -343,15 +355,9 @@ document.addEventListener('DOMContentLoaded', () => {
     renderAll();
   });
 
-  // Sample data / wipe
-  document.getElementById('seedBtn').addEventListener('click', () => {
-    if (tickets.length && !confirm('This adds sample tickets to your current queue. Continue?')) return;
-    tickets.push(...sampleTickets());
-    saveTickets();
-    renderAll();
-  });
-
+  // Clear all
   document.getElementById('wipeBtn').addEventListener('click', () => {
+    if (!requireAdminPassword('clear all tickets')) return;
     if (!confirm('Erase all tickets? This can\'t be undone.')) return;
     tickets = [];
     saveTickets();
@@ -359,95 +365,3 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-/* ---------- Sample data ---------- */
-
-function sampleTickets(){
-  const now = Date.now();
-  const hoursAgo = (h) => new Date(now - h * 3600000).toISOString();
-
-  return [
-    {
-      id: nextTicketId(),
-      title: 'VPN drops every few minutes on laptop',
-      description: 'Connection disconnects roughly every 5-10 minutes since the update yesterday. Reconnecting works but it\'s constant. Using the office SSID at home over fiber.',
-      requester: 'Maria Santos',
-      department: 'Finance',
-      category: 'Network',
-      priority: 'High',
-      status: 'Open',
-      createdAt: hoursAgo(3),
-      activity: [{ text: 'Ticket opened.', at: hoursAgo(3) }]
-    },
-    {
-      id: nextTicketId(),
-      title: 'Cannot access shared drive after password reset',
-      description: 'Reset password this morning per the email prompt. Email and Slack work fine but the shared drive still asks for old credentials.',
-      requester: 'James Okafor',
-      department: 'Marketing',
-      category: 'Access & Accounts',
-      priority: 'Medium',
-      status: 'In Progress',
-      createdAt: hoursAgo(20),
-      activity: [
-        { text: 'Ticket opened.', at: hoursAgo(20) },
-        { text: 'Assigned to helpdesk tier 2.', at: hoursAgo(14) }
-      ]
-    },
-    {
-      id: nextTicketId(),
-      title: 'Production database server unresponsive',
-      description: 'Primary DB node stopped responding to health checks at 2:14am. Failover has not triggered. Customer-facing app is down.',
-      requester: 'Dev Patel',
-      department: 'Engineering',
-      category: 'Network',
-      priority: 'Critical',
-      status: 'Open',
-      createdAt: hoursAgo(1),
-      activity: [{ text: 'Ticket opened.', at: hoursAgo(1) }]
-    },
-    {
-      id: nextTicketId(),
-      title: 'New hire laptop setup — starts Monday',
-      description: 'Need a standard engineering laptop image provisioned with the usual dev toolchain for a new starter joining next week.',
-      requester: 'Priya Raman',
-      department: 'People Ops',
-      category: 'Hardware',
-      priority: 'Low',
-      status: 'Resolved',
-      createdAt: hoursAgo(72),
-      activity: [
-        { text: 'Ticket opened.', at: hoursAgo(72) },
-        { text: 'Laptop imaged and tested.', at: hoursAgo(50) },
-        { text: 'Status changed from In Progress to Resolved.', at: hoursAgo(48) }
-      ]
-    },
-    {
-      id: nextTicketId(),
-      title: 'Outlook not syncing on iPhone',
-      description: 'Mail app shows a sync error and hasn\'t pulled new messages since last night. Already tried removing and re-adding the account once.',
-      requester: 'Tom Berger',
-      department: 'Sales',
-      category: 'Email',
-      priority: 'Medium',
-      status: 'Closed',
-      createdAt: hoursAgo(96),
-      activity: [
-        { text: 'Ticket opened.', at: hoursAgo(96) },
-        { text: 'Fixed by re-authenticating the mail profile.', at: hoursAgo(90) },
-        { text: 'Status changed from Resolved to Closed.', at: hoursAgo(88) }
-      ]
-    },
-    {
-      id: nextTicketId(),
-      title: 'Requesting Figma seat for design review',
-      description: 'Need an editor seat (not viewer) to leave comments and adjust components ahead of Thursday\'s design review.',
-      requester: 'Aiko Tanaka',
-      department: 'Product',
-      category: 'Software',
-      priority: 'Low',
-      status: 'Open',
-      createdAt: hoursAgo(6),
-      activity: [{ text: 'Ticket opened.', at: hoursAgo(6) }]
-    }
-  ];
-}
