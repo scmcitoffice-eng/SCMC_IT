@@ -74,6 +74,65 @@ function escapeHtml(str){
   return div.innerHTML;
 }
 
+/* ---------- CSV export ---------- */
+
+function csvEscape(value){
+  const str = String(value ?? '');
+  if (/[",\n]/.test(str)){
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+function ticketsToCSV(list){
+  const headers = [
+    'Ticket ID', 'Title', 'Description', 'Requester', 'Department',
+    'Category', 'Priority', 'Status', 'Created At', 'Activity Log'
+  ];
+
+  const rows = list.map(t => {
+    const activitySummary = (t.activity || [])
+      .map(a => `[${formatDate(a.at)}] ${a.text}`)
+      .join(' | ');
+
+    return [
+      t.id,
+      t.title,
+      t.description,
+      t.requester,
+      t.department || '',
+      t.category,
+      t.priority,
+      t.status,
+      new Date(t.createdAt).toISOString(),
+      activitySummary
+    ].map(csvEscape).join(',');
+  });
+
+  return [headers.map(csvEscape).join(','), ...rows].join('\r\n');
+}
+
+function downloadCSV(){
+  if (tickets.length === 0){
+    alert('There are no tickets to export yet.');
+    return;
+  }
+
+  const sorted = [...tickets].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const csv = ticketsToCSV(sorted);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `deskline-tickets-${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 /* ---------- Rendering: table ---------- */
 
 function getFilteredTickets(){
@@ -354,6 +413,9 @@ document.addEventListener('DOMContentLoaded', () => {
     closeDrawer();
     renderAll();
   });
+
+  // Export
+  document.getElementById('exportBtn').addEventListener('click', downloadCSV);
 
   // Clear all
   document.getElementById('wipeBtn').addEventListener('click', () => {
