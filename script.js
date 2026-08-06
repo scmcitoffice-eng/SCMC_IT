@@ -23,6 +23,21 @@ const STATUSES = ['Open', 'In Progress', 'Resolved', 'Closed'];
 const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
 const PRIORITY_WEIGHT = { Critical: 3, High: 2, Medium: 1, Low: 0 };
 
+// Editing, clearing, or deleting a ticket requires this password.
+const EDIT_PASSWORD = 'p@ssw0rd';
+
+// Prompts for the edit password and returns true only if it matches.
+// Returns false (with an alert, unless the prompt was cancelled) otherwise.
+function verifyEditPassword(actionLabel){
+  const entered = window.prompt(`Enter password to ${actionLabel}:`);
+  if (entered === null) return false; // user cancelled
+  if (entered !== EDIT_PASSWORD){
+    alert('Incorrect password.');
+    return false;
+  }
+  return true;
+}
+
 /* ---------- State ---------- */
 
 let tickets = [];              // kept in sync with Realtime Database via onValue
@@ -347,6 +362,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!t) return;
     const oldStatus = t.status;
     const newStatus = e.target.value;
+
+    if (!verifyEditPassword('change this ticket\'s status')){
+      e.target.value = oldStatus; // revert the select
+      return;
+    }
+
     const activity = [...(t.activity || []), { text: `Status changed from ${oldStatus} to ${newStatus}.`, at: new Date().toISOString() }];
     try{
       await updateTicket(t.docId, { status: newStatus, activity });
@@ -361,6 +382,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!t) return;
     const oldPriority = t.priority;
     const newPriority = e.target.value;
+
+    if (!verifyEditPassword('change this ticket\'s priority')){
+      e.target.value = oldPriority; // revert the select
+      return;
+    }
+
     const activity = [...(t.activity || []), { text: `Priority changed from ${oldPriority} to ${newPriority}.`, at: new Date().toISOString() }];
     try{
       await updateTicket(t.docId, { priority: newPriority, activity });
@@ -390,6 +417,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('deleteTicketBtn').addEventListener('click', async () => {
     if (!activeDrawerId) return;
     if (!confirm('Delete this ticket? This can\'t be undone.')) return;
+    if (!verifyEditPassword('delete this ticket')) return;
     try{
       await deleteTicket(activeDrawerId);
       closeDrawer();
@@ -399,21 +427,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Sample data / wipe
-  document.getElementById('seedBtn').addEventListener('click', async () => {
-    if (tickets.length && !confirm('This adds sample tickets to the shared queue. Continue?')) return;
-    try{
-      for (const sample of sampleTicketsData()){
-        await createTicket(sample);
-      }
-    }catch(err){
-      console.error('Failed to load sample data', err);
-      alert('Could not load sample tickets. Please try again.');
-    }
-  });
-
   document.getElementById('wipeBtn').addEventListener('click', async () => {
     if (!confirm('Erase all tickets for everyone? This can\'t be undone.')) return;
+    if (!verifyEditPassword('clear all tickets')) return;
     try{
       await Promise.all(tickets.map(t => deleteTicket(t.docId)));
     }catch(err){
@@ -423,59 +439,3 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-/* ---------- Sample data ---------- */
-/* Returns plain ticket fields — createTicket() fills in id/status/
-   createdAt/activity so every seeded ticket looks freshly opened. */
-
-function sampleTicketsData(){
-  return [
-    {
-      title: 'VPN drops every few minutes on laptop',
-      description: 'Connection disconnects roughly every 5-10 minutes since the update yesterday. Reconnecting works but it\'s constant. Using the office SSID at home over fiber.',
-      requester: 'Maria Santos',
-      department: 'Finance',
-      category: 'Network',
-      priority: 'High'
-    },
-    {
-      title: 'Cannot access shared drive after password reset',
-      description: 'Reset password this morning per the email prompt. Email and Slack work fine but the shared drive still asks for old credentials.',
-      requester: 'James Okafor',
-      department: 'Marketing',
-      category: 'Access & Accounts',
-      priority: 'Medium'
-    },
-    {
-      title: 'Production database server unresponsive',
-      description: 'Primary DB node stopped responding to health checks at 2:14am. Failover has not triggered. Customer-facing app is down.',
-      requester: 'Dev Patel',
-      department: 'Engineering',
-      category: 'Network',
-      priority: 'Critical'
-    },
-    {
-      title: 'New hire laptop setup — starts Monday',
-      description: 'Need a standard engineering laptop image provisioned with the usual dev toolchain for a new starter joining next week.',
-      requester: 'Priya Raman',
-      department: 'People Ops',
-      category: 'Hardware',
-      priority: 'Low'
-    },
-    {
-      title: 'Outlook not syncing on iPhone',
-      description: 'Mail app shows a sync error and hasn\'t pulled new messages since last night. Already tried removing and re-adding the account once.',
-      requester: 'Tom Berger',
-      department: 'Sales',
-      category: 'Email',
-      priority: 'Medium'
-    },
-    {
-      title: 'Requesting Figma seat for design review',
-      description: 'Need an editor seat (not viewer) to leave comments and adjust components ahead of Thursday\'s design review.',
-      requester: 'Aiko Tanaka',
-      department: 'Product',
-      category: 'Software',
-      priority: 'Low'
-    }
-  ];
-}

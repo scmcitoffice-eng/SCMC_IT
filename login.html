@@ -46,7 +46,6 @@
         <input type="password" id="siPassword" placeholder="••••••••" autocomplete="current-password" required>
       </label>
       <button type="submit" class="primary-btn auth-submit">Sign in</button>
-      <button type="button" class="ghost-btn auth-demo" id="demoBtn">Use demo account</button>
     </form>
 
     <!-- SIGN UP -->
@@ -62,6 +61,10 @@
       <label class="field field-wide">
         <span class="field-label">Password</span>
         <input type="password" id="suPassword" placeholder="At least 8 characters" autocomplete="new-password" minlength="8" required>
+      </label>
+      <label class="field field-wide">
+        <span class="field-label">Confirm password</span>
+        <input type="password" id="suPasswordConfirm" placeholder="Re-enter your password" autocomplete="new-password" minlength="8" required>
       </label>
       <button type="submit" class="primary-btn auth-submit">Create account</button>
     </form>
@@ -128,32 +131,20 @@
     const name = document.getElementById('suName').value;
     const email = document.getElementById('suEmail').value;
     const password = document.getElementById('suPassword').value;
+    const passwordConfirm = document.getElementById('suPasswordConfirm').value;
+
+    if (password !== passwordConfirm){
+      showError('Passwords do not match.');
+      setBusy(signupForm, false);
+      return;
+    }
+
     try{
       await signUp(name, email, password);
       window.location.href = 'index.html';
     }catch(err){
       showError(friendlyAuthError(err));
       setBusy(signupForm, false);
-    }
-  });
-
-  document.getElementById('demoBtn').addEventListener('click', async () => {
-    clearError();
-    const demoEmail = 'demo@deskline.app';
-    const demoPassword = 'demo1234';
-    try{
-      try{
-        await signIn(demoEmail, demoPassword);
-      }catch(err){
-        if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential'){
-          await signUp('Demo User', demoEmail, demoPassword);
-        } else {
-          throw err;
-        }
-      }
-      window.location.href = 'index.html';
-    }catch(err){
-      showError(friendlyAuthError(err));
     }
   });
 </script>
