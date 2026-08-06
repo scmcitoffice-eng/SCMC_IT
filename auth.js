@@ -1,100 +1,79 @@
 /* ============================================================
    Deskline — Auth
-   Client-side only demo auth. Accounts + session live in
-   localStorage. Passwords are SHA-256 hashed before storage so
-   they're not sitting around in plain text, but this is NOT a
-   substitute for real server-side authentication — anyone with
-   console access to this browser can still read localStorage.
+   Backed by Firebase Authentication (email/password). Replaces
+   the earlier localStorage-only demo auth.
    ============================================================ */
 
-const USERS_KEY = 'deskline_users';
-const SESSION_KEY = 'deskline_session';
+import {
+  auth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut,
+  updateProfile
+} from './firebase-init.js';
 
-/* ---------- Users ---------- */
+/* ---------- Account actions ---------- */
 
-function loadUsers(){
-  try{
-    const raw = localStorage.getItem(USERS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  }catch(e){
-    console.error('Failed to load users', e);
-    return [];
+async function signUp(name, email, password){
+  const cred = await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+  if (name && name.trim()){
+    await updateProfile(cred.user, { displayName: name.trim() });
   }
+  return cred.user;
 }
 
-function saveUsers(users){
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+async function signIn(email, password){
+  const cred = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+  return cred.user;
 }
 
-function findUser(email){
-  const norm = email.trim().toLowerCase();
-  return loadUsers().find(u => u.email === norm);
+async function logOut(){
+  await signOut(auth);
 }
 
-async function hashPassword(password){
-  const enc = new TextEncoder().encode(password);
-  const buf = await crypto.subtle.digest('SHA-256', enc);
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+/* ---------- Session state ---------- */
+
+// Fires immediately with the current user (or null), then on every
+// sign-in/sign-out. Returns an unsubscribe function.
+function onAuth(callback){
+  return onAuthStateChanged(auth, callback);
 }
 
-async function createUser({ name, email, password }){
-  const users = loadUsers();
-  const norm = email.trim().toLowerCase();
-  if (users.some(u => u.email === norm)){
-    throw new Error('An account with that email already exists.');
-  }
-  const user = {
-    name: name.trim(),
-    email: norm,
-    passwordHash: await hashPassword(password),
-    createdAt: new Date().toISOString()
-  };
-  users.push(user);
-  saveUsers(users);
-  return user;
+// For protected pages: redirects to login.html once Firebase confirms
+// there's no signed-in user. Fires `onSignedIn(user)` if there is one.
+function requireAuth(onSignedIn){
+  return onAuth((user) => {
+    if (!user){
+      window.location.replace('login.html');
+    } else if (onSignedIn){
+      onSignedIn(user);
+    }
+  });
 }
 
-async function verifyUser(email, password){
-  const user = findUser(email);
-  if (!user) return null;
-  const hash = await hashPassword(password);
-  return hash === user.passwordHash ? user : null;
-}
-
-/* ---------- Session ---------- */
-
-function getSession(){
-  try{
-    const raw = localStorage.getItem(SESSION_KEY);
-    return raw ? JSON.parse(raw) : null;
-  }catch(e){
-    return null;
-  }
-}
-
-function setSession(user){
-  localStorage.setItem(SESSION_KEY, JSON.stringify({
-    name: user.name,
-    email: user.email,
-    loggedInAt: new Date().toISOString()
-  }));
-}
-
-function clearSession(){
-  localStorage.removeItem(SESSION_KEY);
-}
-
-/* Redirects to the login page if nobody's signed in.
-   Call this as early as possible on protected pages. */
-function requireAuth(){
-  const session = getSession();
-  if (!session){
-    window.location.replace('login.html');
-    return null;
-  }
-  return session;
-}
+/* ---------- Helpers ---------- */
 
 function initials(name){
+  if (!name) return '?';
   return name.trim().split(/\s+/).slice(0, 2).map(p => p[0].toUpperCase()).join('');
 }
+
+// Turns Firebase's auth/xyz-error-code into a short, readable message.
+function friendlyAuthError(err){
+  const map = {
+    'auth/invalid-email': 'That email address looks invalid.',
+    'auth/user-disabled': 'This account has been disabled.',
+    'auth/user-not-found': 'Email or password is incorrect.',
+    'auth/wrong-password': 'Email or password is incorrect.',
+    'auth/invalid-credential': 'Email or password is incorrect.',
+    'auth/email-already-in-use': 'An account with that email already exists.',
+    'auth/weak-password': 'Password should be at least 6 characters.',
+    'auth/too-many-requests': 'Too many attempts. Please wait a moment and try again.',
+    'auth/network-request-failed': 'Network error — check your connection and try again.',
+    'auth/unauthorized-domain': 'This domain isn\'t authorized in the Firebase console yet.'
+  };
+  return map[err?.code] || err?.message || 'Something went wrong. Please try again.';
+}
+
+export { signUp, signIn, logOut, onAuth, requireAuth, initials, friendlyAuthError };

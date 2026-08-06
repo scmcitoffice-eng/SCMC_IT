@@ -10,8 +10,8 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<script src="auth.js"></script>
-<script>
+<script type="module">
+  import { requireAuth } from './auth.js';
   // Bounce to the login page immediately if nobody's signed in.
   requireAuth();
 </script>
@@ -271,20 +271,21 @@
 </div>
 
 <script src="script.js"></script>
-<script>
+<script type="module">
+  import { requireAuth, logOut, initials } from './auth.js';
+
   // Populate the signed-in user card and wire up logout.
-  (function(){
-    const session = getSession();
-    if (session){
-      document.getElementById('railUserAvatar').textContent = initials(session.name || session.email);
-      document.getElementById('railUserName').textContent = session.name || session.email;
-      document.getElementById('railUserEmail').textContent = session.email;
-    }
-    document.getElementById('logoutBtn').addEventListener('click', () => {
-      clearSession();
-      window.location.href = 'login.html';
-    });
-  })();
+  requireAuth((user) => {
+    const name = user.displayName || user.email;
+    document.getElementById('railUserAvatar').textContent = initials(name);
+    document.getElementById('railUserName').textContent = name;
+    document.getElementById('railUserEmail').textContent = user.email;
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await logOut();
+    window.location.href = 'login.html';
+  });
 </script>
 </body>
 </html>

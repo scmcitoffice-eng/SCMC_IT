@@ -71,12 +71,13 @@
 
 </div>
 
-<script src="auth.js"></script>
-<script>
+<script type="module">
+  import { signUp, signIn, onAuth, friendlyAuthError } from './auth.js';
+
   // Already signed in? Skip straight to the board.
-  if (getSession()){
-    window.location.replace('index.html');
-  }
+  onAuth((user) => {
+    if (user) window.location.replace('index.html');
+  });
 
   const tabs = document.getElementById('authTabs');
   const signinForm = document.getElementById('signinForm');
@@ -90,6 +91,9 @@
   function clearError(){
     errorEl.hidden = true;
     errorEl.textContent = '';
+  }
+  function setBusy(form, busy){
+    form.querySelectorAll('button').forEach(b => b.disabled = busy);
   }
 
   tabs.addEventListener('click', (e) => {
@@ -105,29 +109,31 @@
   signinForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearError();
+    setBusy(signinForm, true);
     const email = document.getElementById('siEmail').value;
     const password = document.getElementById('siPassword').value;
-    const user = await verifyUser(email, password);
-    if (!user){
-      showError('Email or password is incorrect.');
-      return;
+    try{
+      await signIn(email, password);
+      window.location.href = 'index.html';
+    }catch(err){
+      showError(friendlyAuthError(err));
+      setBusy(signinForm, false);
     }
-    setSession(user);
-    window.location.href = 'index.html';
   });
 
   signupForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearError();
+    setBusy(signupForm, true);
     const name = document.getElementById('suName').value;
     const email = document.getElementById('suEmail').value;
     const password = document.getElementById('suPassword').value;
     try{
-      const user = await createUser({ name, email, password });
-      setSession(user);
+      await signUp(name, email, password);
       window.location.href = 'index.html';
     }catch(err){
-      showError(err.message);
+      showError(friendlyAuthError(err));
+      setBusy(signupForm, false);
     }
   });
 
@@ -135,12 +141,20 @@
     clearError();
     const demoEmail = 'demo@deskline.app';
     const demoPassword = 'demo1234';
-    let user = await verifyUser(demoEmail, demoPassword);
-    if (!user){
-      user = await createUser({ name: 'Demo User', email: demoEmail, password: demoPassword });
+    try{
+      try{
+        await signIn(demoEmail, demoPassword);
+      }catch(err){
+        if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential'){
+          await signUp('Demo User', demoEmail, demoPassword);
+        } else {
+          throw err;
+        }
+      }
+      window.location.href = 'index.html';
+    }catch(err){
+      showError(friendlyAuthError(err));
     }
-    setSession(user);
-    window.location.href = 'index.html';
   });
 </script>
 </body>
