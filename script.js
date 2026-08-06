@@ -1,10 +1,25 @@
 /* ============================================================
    Deskline — IT Ticket Desk
-   All data lives in localStorage under the key "deskline_tickets"
+   Tickets are stored in Firestore (collection "tickets") so every
+   signed-in account sees the same live queue, instead of each
+   browser keeping its own localStorage copy.
    ============================================================ */
 
-const STORAGE_KEY = 'deskline_tickets';
-const COUNTER_KEY = 'deskline_ticket_counter';
+import {
+  db,
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  onSnapshot,
+  query,
+  orderBy,
+  runTransaction
+} from './firebase-init.js';
+
+const TICKETS_COLLECTION = 'tickets';
+const COUNTER_DOC = 'ticketCounter'; // in a "meta" collection
 
 const STATUSES = ['Open', 'In Progress', 'Resolved', 'Closed'];
 const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
@@ -12,30 +27,55 @@ const PRIORITY_WEIGHT = { Critical: 3, High: 2, Medium: 1, Low: 0 };
 
 /* ---------- State ---------- */
 
-let tickets = loadTickets();
-let activeDrawerId = null;
+let tickets = [];              // kept in sync with Firestore via onSnapshot
+let activeDrawerId = null;     // Firestore document id of the open ticket
 let filters = { status: 'all', priority: 'all', search: '', sort: 'newest' };
 
-/* ---------- Persistence ---------- */
+/* ---------- Firestore: tickets ---------- */
 
-function loadTickets(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  }catch(e){
-    console.error('Failed to load tickets', e);
-    return [];
-  }
+// Atomically hands out the next TCK-#### number, shared across everyone.
+async function nextTicketId(){
+  const counterRef = doc(db, 'meta', COUNTER_DOC);
+  const next = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(counterRef);
+    const current = snap.exists() ? snap.data().value : 0;
+    const value = current + 1;
+    tx.set(counterRef, { value });
+    return value;
+  });
+  return 'TCK-' + String(next).padStart(4, '0');
 }
 
-function saveTickets(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
+async function createTicket(data){
+  const displayId = await nextTicketId();
+  const now = new Date().toISOString();
+  await addDoc(collection(db, TICKETS_COLLECTION), {
+    ...data,
+    id: displayId,
+    status: 'Open',
+    createdAt: now,
+    activity: [{ text: 'Ticket opened.', at: now }]
+  });
 }
 
-function nextTicketId(){
-  let n = parseInt(localStorage.getItem(COUNTER_KEY) || '0', 10) + 1;
-  localStorage.setItem(COUNTER_KEY, String(n));
-  return 'TCK-' + String(n).padStart(4, '0');
+async function updateTicket(docId, patch){
+  await updateDoc(doc(db, TICKETS_COLLECTION, docId), patch);
+}
+
+async function deleteTicket(docId){
+  await deleteDoc(doc(db, TICKETS_COLLECTION, docId));
+}
+
+// Starts the live listener. Every insert/update/delete by any signed-in
+// user re-fires this callback for everyone with the full ticket list.
+function watchTickets(onChange){
+  const q = query(collection(db, TICKETS_COLLECTION), orderBy('createdAt', 'desc'));
+  return onSnapshot(q, (snapshot) => {
+    tickets = snapshot.docs.map(d => ({ docId: d.id, ...d.data() }));
+    onChange();
+  }, (err) => {
+    console.error('Ticket sync failed', err);
+  });
 }
 
 /* ---------- Helpers ---------- */
@@ -112,7 +152,7 @@ function renderTable(){
 
   for (const t of list){
     const tr = document.createElement('tr');
-    tr.dataset.id = t.id;
+    tr.dataset.id = t.docId;
     tr.innerHTML = `
       <td class="cell-id">${t.id}</td>
       <td>
@@ -124,9 +164,9 @@ function renderTable(){
       <td><span class="badge ${statusClass(t.status)}"><span class="badge-dot"></span>${t.status}</span></td>
       <td class="cell-requester">${escapeHtml(t.requester)}</td>
       <td class="cell-date">${formatDate(t.createdAt)}</td>
-      <td class="col-actions"><button class="row-action" data-open="${t.id}">Open →</button></td>
+      <td class="col-actions"><button class="row-action" data-open="${t.docId}">Open →</button></td>
     `;
-    tr.addEventListener('click', () => openDrawer(t.id));
+    tr.addEventListener('click', () => openDrawer(t.docId));
     tbody.appendChild(tr);
   }
 }
@@ -168,6 +208,11 @@ function renderStats(){
 function renderAll(){
   renderTable();
   renderStats();
+  // Keep the open drawer's activity log in sync if its ticket just changed.
+  if (activeDrawerId){
+    const t = currentDrawerTicket();
+    if (t) renderActivity(t);
+  }
 }
 
 /* ---------- Views ---------- */
@@ -182,10 +227,10 @@ function showView(view){
 
 /* ---------- Drawer ---------- */
 
-function openDrawer(id){
-  const t = tickets.find(t => t.id === id);
+function openDrawer(docId){
+  const t = tickets.find(t => t.docId === docId);
   if (!t) return;
-  activeDrawerId = id;
+  activeDrawerId = docId;
 
   document.getElementById('drawerId').textContent = t.id;
   document.getElementById('drawerTitle').textContent = t.title;
@@ -226,13 +271,15 @@ function renderActivity(t){
 }
 
 function currentDrawerTicket(){
-  return tickets.find(t => t.id === activeDrawerId);
+  return tickets.find(t => t.docId === activeDrawerId);
 }
 
 /* ---------- Event wiring ---------- */
 
 document.addEventListener('DOMContentLoaded', () => {
-  renderAll();
+  // Live sync: re-render the whole board whenever Firestore changes,
+  // whether that change came from this tab or someone else's account.
+  watchTickets(renderAll);
 
   // Nav
   document.querySelectorAll('.rail-item').forEach(btn => {
@@ -245,25 +292,27 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // New ticket form
-  document.getElementById('ticketForm').addEventListener('submit', (e) => {
+  document.getElementById('ticketForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const ticket = {
-      id: nextTicketId(),
-      title: document.getElementById('fTitle').value.trim(),
-      description: document.getElementById('fDescription').value.trim(),
-      requester: document.getElementById('fRequester').value.trim(),
-      department: document.getElementById('fDepartment').value.trim(),
-      category: document.getElementById('fCategory').value,
-      priority: document.getElementById('fPriority').value,
-      status: 'Open',
-      createdAt: new Date().toISOString(),
-      activity: [{ text: 'Ticket opened.', at: new Date().toISOString() }]
-    };
-    tickets.push(ticket);
-    saveTickets();
-    renderAll();
-    e.target.reset();
-    showView('board');
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    try{
+      await createTicket({
+        title: document.getElementById('fTitle').value.trim(),
+        description: document.getElementById('fDescription').value.trim(),
+        requester: document.getElementById('fRequester').value.trim(),
+        department: document.getElementById('fDepartment').value.trim(),
+        category: document.getElementById('fCategory').value,
+        priority: document.getElementById('fPriority').value
+      });
+      e.target.reset();
+      showView('board');
+    }catch(err){
+      console.error('Failed to create ticket', err);
+      alert('Could not save the ticket. Please try again.');
+    }finally{
+      submitBtn.disabled = false;
+    }
   });
 
   // Filters
@@ -299,155 +348,140 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape' && activeDrawerId) closeDrawer();
   });
 
-  document.getElementById('drawerStatus').addEventListener('change', (e) => {
+  document.getElementById('drawerStatus').addEventListener('change', async (e) => {
     const t = currentDrawerTicket();
     if (!t) return;
     const oldStatus = t.status;
-    t.status = e.target.value;
-    t.activity.push({ text: `Status changed from ${oldStatus} to ${t.status}.`, at: new Date().toISOString() });
-    saveTickets();
-    renderAll();
-    renderActivity(t);
+    const newStatus = e.target.value;
+    const activity = [...(t.activity || []), { text: `Status changed from ${oldStatus} to ${newStatus}.`, at: new Date().toISOString() }];
+    try{
+      await updateTicket(t.docId, { status: newStatus, activity });
+    }catch(err){
+      console.error('Failed to update status', err);
+      alert('Could not update status. Please try again.');
+    }
   });
 
-  document.getElementById('drawerPriority').addEventListener('change', (e) => {
+  document.getElementById('drawerPriority').addEventListener('change', async (e) => {
     const t = currentDrawerTicket();
     if (!t) return;
     const oldPriority = t.priority;
-    t.priority = e.target.value;
-    t.activity.push({ text: `Priority changed from ${oldPriority} to ${t.priority}.`, at: new Date().toISOString() });
-    saveTickets();
-    renderAll();
-    renderActivity(t);
+    const newPriority = e.target.value;
+    const activity = [...(t.activity || []), { text: `Priority changed from ${oldPriority} to ${newPriority}.`, at: new Date().toISOString() }];
+    try{
+      await updateTicket(t.docId, { priority: newPriority, activity });
+    }catch(err){
+      console.error('Failed to update priority', err);
+      alert('Could not update priority. Please try again.');
+    }
   });
 
-  document.getElementById('activityForm').addEventListener('submit', (e) => {
+  document.getElementById('activityForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const input = document.getElementById('activityInput');
     const text = input.value.trim();
     if (!text) return;
     const t = currentDrawerTicket();
     if (!t) return;
-    t.activity.push({ text, at: new Date().toISOString() });
-    saveTickets();
-    renderActivity(t);
-    input.value = '';
+    const activity = [...(t.activity || []), { text, at: new Date().toISOString() }];
+    try{
+      await updateTicket(t.docId, { activity });
+      input.value = '';
+    }catch(err){
+      console.error('Failed to add activity', err);
+      alert('Could not add that note. Please try again.');
+    }
   });
 
-  document.getElementById('deleteTicketBtn').addEventListener('click', () => {
+  document.getElementById('deleteTicketBtn').addEventListener('click', async () => {
     if (!activeDrawerId) return;
     if (!confirm('Delete this ticket? This can\'t be undone.')) return;
-    tickets = tickets.filter(t => t.id !== activeDrawerId);
-    saveTickets();
-    closeDrawer();
-    renderAll();
+    try{
+      await deleteTicket(activeDrawerId);
+      closeDrawer();
+    }catch(err){
+      console.error('Failed to delete ticket', err);
+      alert('Could not delete the ticket. Please try again.');
+    }
   });
 
   // Sample data / wipe
-  document.getElementById('seedBtn').addEventListener('click', () => {
-    if (tickets.length && !confirm('This adds sample tickets to your current queue. Continue?')) return;
-    tickets.push(...sampleTickets());
-    saveTickets();
-    renderAll();
+  document.getElementById('seedBtn').addEventListener('click', async () => {
+    if (tickets.length && !confirm('This adds sample tickets to the shared queue. Continue?')) return;
+    try{
+      for (const sample of sampleTicketsData()){
+        await createTicket(sample);
+      }
+    }catch(err){
+      console.error('Failed to load sample data', err);
+      alert('Could not load sample tickets. Please try again.');
+    }
   });
 
-  document.getElementById('wipeBtn').addEventListener('click', () => {
-    if (!confirm('Erase all tickets? This can\'t be undone.')) return;
-    tickets = [];
-    saveTickets();
-    renderAll();
+  document.getElementById('wipeBtn').addEventListener('click', async () => {
+    if (!confirm('Erase all tickets for everyone? This can\'t be undone.')) return;
+    try{
+      await Promise.all(tickets.map(t => deleteTicket(t.docId)));
+    }catch(err){
+      console.error('Failed to clear tickets', err);
+      alert('Could not clear all tickets. Please try again.');
+    }
   });
 });
 
 /* ---------- Sample data ---------- */
+/* Returns plain ticket fields — createTicket() fills in id/status/
+   createdAt/activity so every seeded ticket looks freshly opened. */
 
-function sampleTickets(){
-  const now = Date.now();
-  const hoursAgo = (h) => new Date(now - h * 3600000).toISOString();
-
+function sampleTicketsData(){
   return [
     {
-      id: nextTicketId(),
       title: 'VPN drops every few minutes on laptop',
       description: 'Connection disconnects roughly every 5-10 minutes since the update yesterday. Reconnecting works but it\'s constant. Using the office SSID at home over fiber.',
       requester: 'Maria Santos',
       department: 'Finance',
       category: 'Network',
-      priority: 'High',
-      status: 'Open',
-      createdAt: hoursAgo(3),
-      activity: [{ text: 'Ticket opened.', at: hoursAgo(3) }]
+      priority: 'High'
     },
     {
-      id: nextTicketId(),
       title: 'Cannot access shared drive after password reset',
       description: 'Reset password this morning per the email prompt. Email and Slack work fine but the shared drive still asks for old credentials.',
       requester: 'James Okafor',
       department: 'Marketing',
       category: 'Access & Accounts',
-      priority: 'Medium',
-      status: 'In Progress',
-      createdAt: hoursAgo(20),
-      activity: [
-        { text: 'Ticket opened.', at: hoursAgo(20) },
-        { text: 'Assigned to helpdesk tier 2.', at: hoursAgo(14) }
-      ]
+      priority: 'Medium'
     },
     {
-      id: nextTicketId(),
       title: 'Production database server unresponsive',
       description: 'Primary DB node stopped responding to health checks at 2:14am. Failover has not triggered. Customer-facing app is down.',
       requester: 'Dev Patel',
       department: 'Engineering',
       category: 'Network',
-      priority: 'Critical',
-      status: 'Open',
-      createdAt: hoursAgo(1),
-      activity: [{ text: 'Ticket opened.', at: hoursAgo(1) }]
+      priority: 'Critical'
     },
     {
-      id: nextTicketId(),
       title: 'New hire laptop setup — starts Monday',
       description: 'Need a standard engineering laptop image provisioned with the usual dev toolchain for a new starter joining next week.',
       requester: 'Priya Raman',
       department: 'People Ops',
       category: 'Hardware',
-      priority: 'Low',
-      status: 'Resolved',
-      createdAt: hoursAgo(72),
-      activity: [
-        { text: 'Ticket opened.', at: hoursAgo(72) },
-        { text: 'Laptop imaged and tested.', at: hoursAgo(50) },
-        { text: 'Status changed from In Progress to Resolved.', at: hoursAgo(48) }
-      ]
+      priority: 'Low'
     },
     {
-      id: nextTicketId(),
       title: 'Outlook not syncing on iPhone',
       description: 'Mail app shows a sync error and hasn\'t pulled new messages since last night. Already tried removing and re-adding the account once.',
       requester: 'Tom Berger',
       department: 'Sales',
       category: 'Email',
-      priority: 'Medium',
-      status: 'Closed',
-      createdAt: hoursAgo(96),
-      activity: [
-        { text: 'Ticket opened.', at: hoursAgo(96) },
-        { text: 'Fixed by re-authenticating the mail profile.', at: hoursAgo(90) },
-        { text: 'Status changed from Resolved to Closed.', at: hoursAgo(88) }
-      ]
+      priority: 'Medium'
     },
     {
-      id: nextTicketId(),
       title: 'Requesting Figma seat for design review',
       description: 'Need an editor seat (not viewer) to leave comments and adjust components ahead of Thursday\'s design review.',
       requester: 'Aiko Tanaka',
       department: 'Product',
       category: 'Software',
-      priority: 'Low',
-      status: 'Open',
-      createdAt: hoursAgo(6),
-      activity: [{ text: 'Ticket opened.', at: hoursAgo(6) }]
+      priority: 'Low'
     }
   ];
 }
