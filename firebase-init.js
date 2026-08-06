@@ -12,22 +12,24 @@ import {
   updateProfile
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
-  getFirestore,
-  collection,
-  doc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-  query,
-  orderBy,
+  getDatabase,
+  ref,
+  push,
+  set,
+  update,
+  remove,
+  onValue,
   runTransaction
-} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCSWNaYQGaoGWnUyOrglf4SYvy5BhIX8LU",
   authDomain: "ticket-b7192.firebaseapp.com",
+  // Realtime Database is in asia-southeast1, so it needs its full URL —
+  // grab the exact value from Firebase console → Realtime Database → Data
+  // tab (shown right above the JSON tree) if this doesn't match.
+  databaseURL: "https://ticket-b7192-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "ticket-b7192",
   storageBucket: "ticket-b7192.firebasestorage.app",
   messagingSenderId: "1031791296558",
@@ -38,7 +40,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
+const db = getDatabase(app);
 
 // Analytics needs a supported browser context (fails inside some sandboxed
 // iframes/previews), so this is guarded rather than assumed to succeed.
@@ -59,13 +61,11 @@ export {
   onAuthStateChanged,
   signOut,
   updateProfile,
-  collection,
-  doc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-  query,
-  orderBy,
+  ref,
+  push,
+  set,
+  update,
+  remove,
+  onValue,
   runTransaction
 };

@@ -1,25 +1,23 @@
 /* ============================================================
    Deskline — IT Ticket Desk
-   Tickets are stored in Firestore (collection "tickets") so every
-   signed-in account sees the same live queue, instead of each
-   browser keeping its own localStorage copy.
+   Tickets are stored in Firebase Realtime Database (path "tickets")
+   so every signed-in account sees the same live queue, instead of
+   each browser keeping its own localStorage copy.
    ============================================================ */
 
 import {
   db,
-  collection,
-  doc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-  query,
-  orderBy,
+  ref,
+  push,
+  set,
+  update,
+  remove,
+  onValue,
   runTransaction
 } from './firebase-init.js';
 
-const TICKETS_COLLECTION = 'tickets';
-const COUNTER_DOC = 'ticketCounter'; // in a "meta" collection
+const TICKETS_PATH = 'tickets';
+const COUNTER_PATH = 'meta/ticketCounter';
 
 const STATUSES = ['Open', 'In Progress', 'Resolved', 'Closed'];
 const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
@@ -27,29 +25,24 @@ const PRIORITY_WEIGHT = { Critical: 3, High: 2, Medium: 1, Low: 0 };
 
 /* ---------- State ---------- */
 
-let tickets = [];              // kept in sync with Firestore via onSnapshot
-let activeDrawerId = null;     // Firestore document id of the open ticket
+let tickets = [];              // kept in sync with Realtime Database via onValue
+let activeDrawerId = null;     // Realtime Database key of the open ticket
 let filters = { status: 'all', priority: 'all', search: '', sort: 'newest' };
 
-/* ---------- Firestore: tickets ---------- */
+/* ---------- Realtime Database: tickets ---------- */
 
 // Atomically hands out the next TCK-#### number, shared across everyone.
 async function nextTicketId(){
-  const counterRef = doc(db, 'meta', COUNTER_DOC);
-  const next = await runTransaction(db, async (tx) => {
-    const snap = await tx.get(counterRef);
-    const current = snap.exists() ? snap.data().value : 0;
-    const value = current + 1;
-    tx.set(counterRef, { value });
-    return value;
-  });
-  return 'TCK-' + String(next).padStart(4, '0');
+  const counterRef = ref(db, COUNTER_PATH);
+  const result = await runTransaction(counterRef, (current) => (current || 0) + 1);
+  return 'TCK-' + String(result.snapshot.val()).padStart(4, '0');
 }
 
 async function createTicket(data){
   const displayId = await nextTicketId();
   const now = new Date().toISOString();
-  await addDoc(collection(db, TICKETS_COLLECTION), {
+  const newRef = push(ref(db, TICKETS_PATH));
+  await set(newRef, {
     ...data,
     id: displayId,
     status: 'Open',
@@ -59,19 +52,20 @@ async function createTicket(data){
 }
 
 async function updateTicket(docId, patch){
-  await updateDoc(doc(db, TICKETS_COLLECTION, docId), patch);
+  await update(ref(db, `${TICKETS_PATH}/${docId}`), patch);
 }
 
 async function deleteTicket(docId){
-  await deleteDoc(doc(db, TICKETS_COLLECTION, docId));
+  await remove(ref(db, `${TICKETS_PATH}/${docId}`));
 }
 
 // Starts the live listener. Every insert/update/delete by any signed-in
 // user re-fires this callback for everyone with the full ticket list.
 function watchTickets(onChange){
-  const q = query(collection(db, TICKETS_COLLECTION), orderBy('createdAt', 'desc'));
-  return onSnapshot(q, (snapshot) => {
-    tickets = snapshot.docs.map(d => ({ docId: d.id, ...d.data() }));
+  const ticketsRef = ref(db, TICKETS_PATH);
+  return onValue(ticketsRef, (snapshot) => {
+    const val = snapshot.val() || {};
+    tickets = Object.entries(val).map(([docId, data]) => ({ docId, ...data }));
     onChange();
   }, (err) => {
     console.error('Ticket sync failed', err);
@@ -277,7 +271,7 @@ function currentDrawerTicket(){
 /* ---------- Event wiring ---------- */
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Live sync: re-render the whole board whenever Firestore changes,
+  // Live sync: re-render the whole board whenever the database changes,
   // whether that change came from this tab or someone else's account.
   watchTickets(renderAll);
 
