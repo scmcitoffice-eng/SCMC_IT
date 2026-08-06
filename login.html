@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign in — Deskline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="auth-body">
+
+<div class="auth-shell">
+
+  <div class="auth-side">
+    <div class="brand">
+      <span class="brand-mark">◉</span>
+      <span class="brand-name">Deskline</span>
+    </div>
+    <p class="auth-side-tag">IT Ticket Desk</p>
+    <p class="auth-side-copy">Sign in to track requests, triage priority, and keep the queue moving.</p>
+    <ul class="auth-side-list">
+      <li><span class="stat-dot dot-open"></span> Open tickets at a glance</li>
+      <li><span class="stat-dot dot-progress"></span> Live status &amp; activity log</li>
+      <li><span class="stat-dot dot-resolved"></span> Everything saved to this device</li>
+    </ul>
+  </div>
+
+  <div class="auth-card">
+    <div class="auth-tabs" id="authTabs">
+      <button class="auth-tab is-active" data-tab="signin">Sign in</button>
+      <button class="auth-tab" data-tab="signup">Create account</button>
+    </div>
+
+    <p class="auth-error" id="authError" hidden></p>
+
+    <!-- SIGN IN -->
+    <form class="auth-form" id="signinForm">
+      <label class="field field-wide">
+        <span class="field-label">Email</span>
+        <input type="email" id="siEmail" placeholder="you@company.com" autocomplete="username" required>
+      </label>
+      <label class="field field-wide">
+        <span class="field-label">Password</span>
+        <input type="password" id="siPassword" placeholder="••••••••" autocomplete="current-password" required>
+      </label>
+      <button type="submit" class="primary-btn auth-submit">Sign in</button>
+      <button type="button" class="ghost-btn auth-demo" id="demoBtn">Use demo account</button>
+    </form>
+
+    <!-- SIGN UP -->
+    <form class="auth-form" id="signupForm" hidden>
+      <label class="field field-wide">
+        <span class="field-label">Full name</span>
+        <input type="text" id="suName" placeholder="Jordan Ellis" autocomplete="name" required>
+      </label>
+      <label class="field field-wide">
+        <span class="field-label">Email</span>
+        <input type="email" id="suEmail" placeholder="you@company.com" autocomplete="username" required>
+      </label>
+      <label class="field field-wide">
+        <span class="field-label">Password</span>
+        <input type="password" id="suPassword" placeholder="At least 8 characters" autocomplete="new-password" minlength="8" required>
+      </label>
+      <button type="submit" class="primary-btn auth-submit">Create account</button>
+    </form>
+
+    <p class="auth-footnote">Accounts are stored locally in this browser — no data leaves your device.</p>
+  </div>
+
+</div>
+
+<script src="auth.js"></script>
+<script>
+  // Already signed in? Skip straight to the board.
+  if (getSession()){
+    window.location.replace('index.html');
+  }
+
+  const tabs = document.getElementById('authTabs');
+  const signinForm = document.getElementById('signinForm');
+  const signupForm = document.getElementById('signupForm');
+  const errorEl = document.getElementById('authError');
+
+  function showError(msg){
+    errorEl.textContent = msg;
+    errorEl.hidden = false;
+  }
+  function clearError(){
+    errorEl.hidden = true;
+    errorEl.textContent = '';
+  }
+
+  tabs.addEventListener('click', (e) => {
+    const btn = e.target.closest('.auth-tab');
+    if (!btn) return;
+    clearError();
+    tabs.querySelectorAll('.auth-tab').forEach(t => t.classList.toggle('is-active', t === btn));
+    const isSignin = btn.dataset.tab === 'signin';
+    signinForm.hidden = !isSignin;
+    signupForm.hidden = isSignin;
+  });
+
+  signinForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearError();
+    const email = document.getElementById('siEmail').value;
+    const password = document.getElementById('siPassword').value;
+    const user = await verifyUser(email, password);
+    if (!user){
+      showError('Email or password is incorrect.');
+      return;
+    }
+    setSession(user);
+    window.location.href = 'index.html';
+  });
+
+  signupForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearError();
+    const name = document.getElementById('suName').value;
+    const email = document.getElementById('suEmail').value;
+    const password = document.getElementById('suPassword').value;
+    try{
+      const user = await createUser({ name, email, password });
+      setSession(user);
+      window.location.href = 'index.html';
+    }catch(err){
+      showError(err.message);
+    }
+  });
+
+  document.getElementById('demoBtn').addEventListener('click', async () => {
+    clearError();
+    const demoEmail = 'demo@deskline.app';
+    const demoPassword = 'demo1234';
+    let user = await verifyUser(demoEmail, demoPassword);
+    if (!user){
+      user = await createUser({ name: 'Demo User', email: demoEmail, password: demoPassword });
+    }
+    setSession(user);
+    window.location.href = 'index.html';
+  });
+</script>
+</body>
+</html>

@@ -10,6 +10,11 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<script src="auth.js"></script>
+<script>
+  // Bounce to the login page immediately if nobody's signed in.
+  requireAuth();
+</script>
 
 <div class="app">
 
@@ -66,8 +71,16 @@
     </div>
 
     <div class="rail-bottom">
+      <div class="rail-user" id="railUser">
+        <div class="rail-user-avatar" id="railUserAvatar">—</div>
+        <div class="rail-user-info">
+          <div class="rail-user-name" id="railUserName">—</div>
+          <div class="rail-user-email" id="railUserEmail">—</div>
+        </div>
+      </div>
       <button class="ghost-btn" id="seedBtn" title="Load sample tickets">Load sample data</button>
       <button class="ghost-btn ghost-danger" id="wipeBtn" title="Erase all tickets">Clear all</button>
+      <button class="ghost-btn ghost-danger" id="logoutBtn" title="Sign out">Log out</button>
     </div>
   </aside>
 
@@ -258,5 +271,20 @@
 </div>
 
 <script src="script.js"></script>
+<script>
+  // Populate the signed-in user card and wire up logout.
+  (function(){
+    const session = getSession();
+    if (session){
+      document.getElementById('railUserAvatar').textContent = initials(session.name || session.email);
+      document.getElementById('railUserName').textContent = session.name || session.email;
+      document.getElementById('railUserEmail').textContent = session.email;
+    }
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      clearSession();
+      window.location.href = 'login.html';
+    });
+  })();
+</script>
 </body>
 </html>
