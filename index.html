@@ -11,31 +11,7 @@
 </head>
 <body>
 
-<!-- Login screen -->
-<div class="login-screen" id="loginScreen">
-  <div class="login-card">
-    <div class="login-brand">
-      <span class="brand-mark">◉</span>
-      <span class="brand-name">Deskline</span>
-    </div>
-    <p class="login-sub">Sign in to the IT ticket desk.</p>
-
-    <form class="login-form" id="loginForm">
-      <label class="field">
-        <span class="field-label">Username</span>
-        <input type="text" id="loginUsername" placeholder="e.g. it" autocomplete="username" required>
-      </label>
-      <label class="field">
-        <span class="field-label">Password</span>
-        <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password" required>
-      </label>
-      <p class="login-error" id="loginError" hidden></p>
-      <button type="submit" class="primary-btn login-submit">Sign in</button>
-    </form>
-  </div>
-</div>
-
-<div class="app" id="appShell" hidden>
+<div class="app">
 
   <!-- Rail -->
   <aside class="rail">
@@ -47,20 +23,12 @@
       <div class="brand-sub">IT Ticket Desk</div>
     </div>
 
-    <div class="rail-user">
-      <span class="rail-user-name" id="railUserName">—</span>
-      <span class="rail-user-role" id="railUserRole">—</span>
-    </div>
-
     <nav class="rail-nav">
       <button class="rail-item is-active" data-view="board">
         <span class="rail-item-icon">▤</span> Board
       </button>
       <button class="rail-item" data-view="new">
         <span class="rail-item-icon">✎</span> New Ticket
-      </button>
-      <button class="rail-item" data-view="users">
-        <span class="rail-item-icon">☺</span> Users
       </button>
     </nav>
 
@@ -100,7 +68,6 @@
     <div class="rail-bottom">
       <button class="ghost-btn" id="seedBtn" title="Load sample tickets">Load sample data</button>
       <button class="ghost-btn ghost-danger" id="wipeBtn" title="Erase all tickets">Clear all</button>
-      <button class="ghost-btn" id="logoutBtn" title="Sign out">Log out</button>
     </div>
   </aside>
 
@@ -227,65 +194,6 @@
           <button type="submit" class="primary-btn">Submit ticket</button>
         </div>
       </form>
-    </section>
-
-    <!-- USERS VIEW -->
-    <section class="view" id="view-users" hidden>
-      <header class="view-header">
-        <div>
-          <h1>Desk Users</h1>
-          <p class="view-sub">Accounts that can sign in to Deskline.</p>
-        </div>
-      </header>
-
-      <div class="users-layout">
-        <form class="ticket-form users-form" id="userForm">
-          <div class="form-grid">
-            <label class="field field-wide">
-              <span class="field-label">Full name</span>
-              <input type="text" id="uName" placeholder="e.g. Jordan Lee" required>
-            </label>
-
-            <label class="field">
-              <span class="field-label">Username</span>
-              <input type="text" id="uUsername" placeholder="e.g. jlee" required>
-            </label>
-
-            <label class="field">
-              <span class="field-label">Password</span>
-              <input type="password" id="uPassword" placeholder="Set a password" required>
-            </label>
-
-            <label class="field">
-              <span class="field-label">Role</span>
-              <select id="uRole">
-                <option>Agent</option>
-                <option>Admin</option>
-              </select>
-            </label>
-          </div>
-
-          <p class="user-form-error" id="userFormError" hidden></p>
-
-          <div class="form-actions">
-            <button type="submit" class="primary-btn">Add user</button>
-          </div>
-        </form>
-
-        <div class="ticket-table-wrap users-table-wrap">
-          <table class="ticket-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Username</th>
-                <th>Role</th>
-                <th class="col-actions"></th>
-              </tr>
-            </thead>
-            <tbody id="userTableBody"></tbody>
-          </table>
-        </div>
-      </div>
     </section>
 
   </main>
