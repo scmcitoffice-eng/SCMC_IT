@@ -5,29 +5,101 @@
 
 const STORAGE_KEY = 'deskline_tickets';
 const COUNTER_KEY = 'deskline_ticket_counter';
-const ADMIN_PASSWORD = 'StC@milluS_26';
-
-function requireAdminPassword(actionLabel){
-  const input = prompt(`Enter the admin password to ${actionLabel}:`);
-  if (input === null) return false; // cancelled
-  if (input !== ADMIN_PASSWORD){
-    alert('Incorrect password. Action cancelled.');
-    return false;
-  }
-  return true;
-}
+const USERS_KEY = 'deskline_users';
+const USER_COUNTER_KEY = 'deskline_user_counter';
+const SESSION_KEY = 'deskline_session';
 
 const STATUSES = ['Open', 'In Progress', 'Resolved', 'Closed'];
 const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
 const PRIORITY_WEIGHT = { Critical: 3, High: 2, Medium: 1, Low: 0 };
+const ROLES = ['Agent', 'Admin'];
 
 /* ---------- State ---------- */
 
 let tickets = loadTickets();
+let users = loadUsers();
+let session = loadSession();
 let activeDrawerId = null;
 let filters = { status: 'all', priority: 'all', search: '', sort: 'newest' };
 
-/* ---------- Persistence ---------- */
+/* ---------- Persistence: users & session ---------- */
+
+function loadUsers(){
+  try{
+    const raw = localStorage.getItem(USERS_KEY);
+    if (raw) return JSON.parse(raw);
+    // Seed a default admin so there's always a way in.
+    const seeded = [{
+      id: nextUserId(),
+      name: 'Alex Rivera',
+      email: 'admin@deskline.io',
+      username: 'admin',
+      password: 'admin123',
+      role: 'Admin',
+      createdAt: new Date().toISOString()
+    }];
+    localStorage.setItem(USERS_KEY, JSON.stringify(seeded));
+    return seeded;
+  }catch(e){
+    console.error('Failed to load users', e);
+    return [];
+  }
+}
+
+function saveUsers(){
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
+
+function nextUserId(){
+  let n = parseInt(localStorage.getItem(USER_COUNTER_KEY) || '0', 10) + 1;
+  localStorage.setItem(USER_COUNTER_KEY, String(n));
+  return 'usr-' + String(n).padStart(4, '0');
+}
+
+function loadSession(){
+  try{
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){
+    return null;
+  }
+}
+
+function saveSession(){
+  if (session){
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  } else {
+    localStorage.removeItem(SESSION_KEY);
+  }
+}
+
+function currentUser(){
+  if (!session) return null;
+  return users.find(u => u.id === session.userId) || null;
+}
+
+function attemptLogin(username, password){
+  const match = users.find(u =>
+    u.username.toLowerCase() === username.trim().toLowerCase() &&
+    u.password === password
+  );
+  if (!match) return false;
+  session = { userId: match.id };
+  saveSession();
+  return true;
+}
+
+function logout(){
+  session = null;
+  saveSession();
+  applyAuthState();
+}
+
+function initials(name){
+  return name.trim().split(/\s+/).slice(0, 2).map(p => p[0].toUpperCase()).join('');
+}
+
+/* ---------- Persistence: tickets ---------- */
 
 function loadTickets(){
   try{
@@ -72,65 +144,6 @@ function escapeHtml(str){
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
-}
-
-/* ---------- CSV export ---------- */
-
-function csvEscape(value){
-  const str = String(value ?? '');
-  if (/[",\n]/.test(str)){
-    return '"' + str.replace(/"/g, '""') + '"';
-  }
-  return str;
-}
-
-function ticketsToCSV(list){
-  const headers = [
-    'Ticket ID', 'Title', 'Description', 'Requester', 'Department',
-    'Category', 'Priority', 'Status', 'Created At', 'Activity Log'
-  ];
-
-  const rows = list.map(t => {
-    const activitySummary = (t.activity || [])
-      .map(a => `[${formatDate(a.at)}] ${a.text}`)
-      .join(' | ');
-
-    return [
-      t.id,
-      t.title,
-      t.description,
-      t.requester,
-      t.department || '',
-      t.category,
-      t.priority,
-      t.status,
-      new Date(t.createdAt).toISOString(),
-      activitySummary
-    ].map(csvEscape).join(',');
-  });
-
-  return [headers.map(csvEscape).join(','), ...rows].join('\r\n');
-}
-
-function downloadCSV(){
-  if (tickets.length === 0){
-    alert('There are no tickets to export yet.');
-    return;
-  }
-
-  const sorted = [...tickets].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  const csv = ticketsToCSV(sorted);
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-
-  const stamp = new Date().toISOString().slice(0, 10);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `deskline-tickets-${stamp}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }
 
 /* ---------- Rendering: table ---------- */
@@ -240,14 +253,90 @@ function renderAll(){
   renderStats();
 }
 
+/* ---------- Rendering: users ---------- */
+
+function renderUsers(){
+  const tbody = document.getElementById('userTableBody');
+  const emptyState = document.getElementById('usersEmptyState');
+  if (!tbody) return;
+
+  tbody.innerHTML = '';
+
+  if (users.length === 0){
+    emptyState.classList.add('is-visible');
+  } else {
+    emptyState.classList.remove('is-visible');
+  }
+
+  const me = currentUser();
+
+  for (const u of users){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="cell-title">${escapeHtml(u.name)}</td>
+      <td class="cell-requester">${escapeHtml(u.username)}</td>
+      <td class="cell-requester">${escapeHtml(u.email)}</td>
+      <td><span class="badge badge-${u.role}"><span class="badge-dot"></span>${u.role}</span></td>
+      <td class="cell-date">${formatDate(u.createdAt)}</td>
+      <td class="col-actions">
+        ${me && me.id !== u.id ? `<button class="row-action" data-remove-user="${u.id}">Remove</button>` : ''}
+      </td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  tbody.querySelectorAll('[data-remove-user]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.removeUser;
+      const target = users.find(u => u.id === id);
+      if (!target) return;
+      if (!confirm(`Remove ${target.name}'s access? They won't be able to sign in.`)) return;
+      users = users.filter(u => u.id !== id);
+      saveUsers();
+      renderUsers();
+    });
+  });
+}
+
+/* ---------- Auth state ---------- */
+
+function applyAuthState(){
+  const loginScreen = document.getElementById('loginScreen');
+  const appRoot = document.getElementById('appRoot');
+  const me = currentUser();
+
+  if (!me){
+    loginScreen.hidden = false;
+    appRoot.hidden = true;
+    return;
+  }
+
+  loginScreen.hidden = true;
+  appRoot.hidden = false;
+
+  document.getElementById('railUserAvatar').textContent = initials(me.name);
+  document.getElementById('railUserName').textContent = me.name;
+  document.getElementById('railUserRole').textContent = me.role;
+
+  const usersNavBtn = document.getElementById('usersNavBtn');
+  const isAdmin = me.role === 'Admin';
+  usersNavBtn.hidden = !isAdmin;
+  if (!isAdmin) showView('board');
+
+  renderAll();
+}
+
 /* ---------- Views ---------- */
 
 function showView(view){
   document.getElementById('view-board').hidden = view !== 'board';
   document.getElementById('view-new').hidden = view !== 'new';
+  document.getElementById('view-users').hidden = view !== 'users';
+  document.getElementById('view-new-user').hidden = view !== 'new-user';
   document.querySelectorAll('.rail-item').forEach(btn => {
     btn.classList.toggle('is-active', btn.dataset.view === view);
   });
+  if (view === 'users') renderUsers();
 }
 
 /* ---------- Drawer ---------- */
@@ -302,7 +391,29 @@ function currentDrawerTicket(){
 /* ---------- Event wiring ---------- */
 
 document.addEventListener('DOMContentLoaded', () => {
-  renderAll();
+  applyAuthState();
+
+  // Login
+  document.getElementById('loginForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const username = document.getElementById('loginUsername').value;
+    const password = document.getElementById('loginPassword').value;
+    const errorEl = document.getElementById('loginError');
+    if (attemptLogin(username, password)){
+      errorEl.hidden = true;
+      e.target.reset();
+      applyAuthState();
+      showView('board');
+    } else {
+      errorEl.textContent = 'Incorrect username or password.';
+      errorEl.hidden = false;
+    }
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    logout();
+    showView('board');
+  });
 
   // Nav
   document.querySelectorAll('.rail-item').forEach(btn => {
@@ -312,6 +423,43 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cancelNew').addEventListener('click', () => {
     document.getElementById('ticketForm').reset();
     showView('board');
+  });
+
+  // Users
+  document.getElementById('openNewUserFromBoard').addEventListener('click', () => {
+    document.getElementById('userFormError').hidden = true;
+    showView('new-user');
+  });
+  document.getElementById('cancelNewUser').addEventListener('click', () => {
+    document.getElementById('userForm').reset();
+    showView('users');
+  });
+
+  document.getElementById('userForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = document.getElementById('uName').value.trim();
+    const email = document.getElementById('uEmail').value.trim();
+    const username = document.getElementById('uUsername').value.trim();
+    const password = document.getElementById('uPassword').value;
+    const role = document.getElementById('uRole').value;
+    const errorEl = document.getElementById('userFormError');
+
+    const taken = users.some(u => u.username.toLowerCase() === username.toLowerCase());
+    if (taken){
+      errorEl.textContent = 'That username is already taken.';
+      errorEl.hidden = false;
+      return;
+    }
+
+    users.push({
+      id: nextUserId(),
+      name, email, username, password, role,
+      createdAt: new Date().toISOString()
+    });
+    saveUsers();
+    errorEl.hidden = true;
+    e.target.reset();
+    showView('users');
   });
 
   // New ticket form
@@ -406,7 +554,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('deleteTicketBtn').addEventListener('click', () => {
     if (!activeDrawerId) return;
-    if (!requireAdminPassword('delete this ticket')) return;
     if (!confirm('Delete this ticket? This can\'t be undone.')) return;
     tickets = tickets.filter(t => t.id !== activeDrawerId);
     saveTickets();
@@ -414,12 +561,15 @@ document.addEventListener('DOMContentLoaded', () => {
     renderAll();
   });
 
-  // Export
-  document.getElementById('exportBtn').addEventListener('click', downloadCSV);
+  // Sample data / wipe
+  document.getElementById('seedBtn').addEventListener('click', () => {
+    if (tickets.length && !confirm('This adds sample tickets to your current queue. Continue?')) return;
+    tickets.push(...sampleTickets());
+    saveTickets();
+    renderAll();
+  });
 
-  // Clear all
   document.getElementById('wipeBtn').addEventListener('click', () => {
-    if (!requireAdminPassword('clear all tickets')) return;
     if (!confirm('Erase all tickets? This can\'t be undone.')) return;
     tickets = [];
     saveTickets();
@@ -427,3 +577,95 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+/* ---------- Sample data ---------- */
+
+function sampleTickets(){
+  const now = Date.now();
+  const hoursAgo = (h) => new Date(now - h * 3600000).toISOString();
+
+  return [
+    {
+      id: nextTicketId(),
+      title: 'VPN drops every few minutes on laptop',
+      description: 'Connection disconnects roughly every 5-10 minutes since the update yesterday. Reconnecting works but it\'s constant. Using the office SSID at home over fiber.',
+      requester: 'Maria Santos',
+      department: 'Finance',
+      category: 'Network',
+      priority: 'High',
+      status: 'Open',
+      createdAt: hoursAgo(3),
+      activity: [{ text: 'Ticket opened.', at: hoursAgo(3) }]
+    },
+    {
+      id: nextTicketId(),
+      title: 'Cannot access shared drive after password reset',
+      description: 'Reset password this morning per the email prompt. Email and Slack work fine but the shared drive still asks for old credentials.',
+      requester: 'James Okafor',
+      department: 'Marketing',
+      category: 'Access & Accounts',
+      priority: 'Medium',
+      status: 'In Progress',
+      createdAt: hoursAgo(20),
+      activity: [
+        { text: 'Ticket opened.', at: hoursAgo(20) },
+        { text: 'Assigned to helpdesk tier 2.', at: hoursAgo(14) }
+      ]
+    },
+    {
+      id: nextTicketId(),
+      title: 'Production database server unresponsive',
+      description: 'Primary DB node stopped responding to health checks at 2:14am. Failover has not triggered. Customer-facing app is down.',
+      requester: 'Dev Patel',
+      department: 'Engineering',
+      category: 'Network',
+      priority: 'Critical',
+      status: 'Open',
+      createdAt: hoursAgo(1),
+      activity: [{ text: 'Ticket opened.', at: hoursAgo(1) }]
+    },
+    {
+      id: nextTicketId(),
+      title: 'New hire laptop setup — starts Monday',
+      description: 'Need a standard engineering laptop image provisioned with the usual dev toolchain for a new starter joining next week.',
+      requester: 'Priya Raman',
+      department: 'People Ops',
+      category: 'Hardware',
+      priority: 'Low',
+      status: 'Resolved',
+      createdAt: hoursAgo(72),
+      activity: [
+        { text: 'Ticket opened.', at: hoursAgo(72) },
+        { text: 'Laptop imaged and tested.', at: hoursAgo(50) },
+        { text: 'Status changed from In Progress to Resolved.', at: hoursAgo(48) }
+      ]
+    },
+    {
+      id: nextTicketId(),
+      title: 'Outlook not syncing on iPhone',
+      description: 'Mail app shows a sync error and hasn\'t pulled new messages since last night. Already tried removing and re-adding the account once.',
+      requester: 'Tom Berger',
+      department: 'Sales',
+      category: 'Email',
+      priority: 'Medium',
+      status: 'Closed',
+      createdAt: hoursAgo(96),
+      activity: [
+        { text: 'Ticket opened.', at: hoursAgo(96) },
+        { text: 'Fixed by re-authenticating the mail profile.', at: hoursAgo(90) },
+        { text: 'Status changed from Resolved to Closed.', at: hoursAgo(88) }
+      ]
+    },
+    {
+      id: nextTicketId(),
+      title: 'Requesting Figma seat for design review',
+      description: 'Need an editor seat (not viewer) to leave comments and adjust components ahead of Thursday\'s design review.',
+      requester: 'Aiko Tanaka',
+      department: 'Product',
+      category: 'Software',
+      priority: 'Low',
+      status: 'Open',
+      createdAt: hoursAgo(6),
+      activity: [{ text: 'Ticket opened.', at: hoursAgo(6) }]
+    }
+  ];
+}

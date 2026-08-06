@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>St. Camillus Medical Center — IT Ticket Desk</title>
+<title>Deskline — IT Ticket Desk</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -11,14 +11,42 @@
 </head>
 <body>
 
-<div class="app">
+<!-- Login screen -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="login-brand">
+      <span class="brand-mark">◉</span>
+      <span class="brand-name">Deskline</span>
+    </div>
+    <p class="login-sub">Sign in to the IT ticket desk.</p>
+
+    <form class="login-form" id="loginForm">
+      <label class="field">
+        <span class="field-label">Username</span>
+        <input type="text" id="loginUsername" placeholder="e.g. admin" required autocomplete="username">
+      </label>
+      <label class="field">
+        <span class="field-label">Password</span>
+        <input type="password" id="loginPassword" placeholder="••••••••" required autocomplete="current-password">
+      </label>
+      <p class="login-error" id="loginError" hidden></p>
+      <button type="submit" class="primary-btn login-submit">Sign in</button>
+    </form>
+
+    <div class="login-hint">
+      Demo credentials: <code>admin</code> / <code>admin123</code>
+    </div>
+  </div>
+</div>
+
+<div class="app" id="appRoot" hidden>
 
   <!-- Rail -->
   <aside class="rail">
     <div class="rail-top">
       <div class="brand">
         <span class="brand-mark">◉</span>
-        <span class="brand-name">St. Camillus Medical Center</span>
+        <span class="brand-name">Deskline</span>
       </div>
       <div class="brand-sub">IT Ticket Desk</div>
     </div>
@@ -29,6 +57,9 @@
       </button>
       <button class="rail-item" data-view="new">
         <span class="rail-item-icon">✎</span> New Ticket
+      </button>
+      <button class="rail-item" data-view="users" id="usersNavBtn" hidden>
+        <span class="rail-item-icon">☺</span> Users
       </button>
     </nav>
 
@@ -66,8 +97,16 @@
     </div>
 
     <div class="rail-bottom">
-      <button class="ghost-btn" id="exportBtn" title="Download tickets as CSV">Export CSV</button>
+      <div class="rail-user" id="railUser">
+        <span class="rail-user-avatar" id="railUserAvatar">—</span>
+        <div class="rail-user-info">
+          <span class="rail-user-name" id="railUserName">—</span>
+          <span class="rail-user-role" id="railUserRole">—</span>
+        </div>
+      </div>
+      <button class="ghost-btn" id="seedBtn" title="Load sample tickets">Load sample data</button>
       <button class="ghost-btn ghost-danger" id="wipeBtn" title="Erase all tickets">Clear all</button>
+      <button class="ghost-btn" id="logoutBtn" title="Sign out">Sign out</button>
     </div>
   </aside>
 
@@ -192,6 +231,88 @@
         <div class="form-actions">
           <button type="button" class="ghost-btn" id="cancelNew">Cancel</button>
           <button type="submit" class="primary-btn">Submit ticket</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- USERS VIEW -->
+    <section class="view" id="view-users" hidden>
+      <header class="view-header">
+        <div>
+          <h1>User Accounts</h1>
+          <p class="view-sub">People who can sign in to the desk.</p>
+        </div>
+        <button class="primary-btn" id="openNewUserFromBoard">+ Add user</button>
+      </header>
+
+      <div class="ticket-table-wrap">
+        <table class="ticket-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Username</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Added</th>
+              <th class="col-actions"></th>
+            </tr>
+          </thead>
+          <tbody id="userTableBody">
+          </tbody>
+        </table>
+        <div class="empty-state" id="usersEmptyState">
+          <div class="empty-mark">◌</div>
+          <p><strong>No users yet.</strong></p>
+          <p class="empty-sub">Add a user so more people can access the desk.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ADD USER VIEW -->
+    <section class="view" id="view-new-user" hidden>
+      <header class="view-header">
+        <div>
+          <h1>Add a User</h1>
+          <p class="view-sub">Create sign-in access for a teammate.</p>
+        </div>
+      </header>
+
+      <form class="ticket-form" id="userForm">
+        <div class="form-grid">
+          <label class="field">
+            <span class="field-label">Full name</span>
+            <input type="text" id="uName" placeholder="Full name" required>
+          </label>
+
+          <label class="field">
+            <span class="field-label">Email</span>
+            <input type="email" id="uEmail" placeholder="name@company.com" required>
+          </label>
+
+          <label class="field">
+            <span class="field-label">Username</span>
+            <input type="text" id="uUsername" placeholder="Login username" required>
+          </label>
+
+          <label class="field">
+            <span class="field-label">Temporary password</span>
+            <input type="text" id="uPassword" placeholder="Assign a starting password" required>
+          </label>
+
+          <label class="field">
+            <span class="field-label">Role</span>
+            <select id="uRole">
+              <option>Agent</option>
+              <option>Admin</option>
+            </select>
+          </label>
+        </div>
+
+        <p class="form-error" id="userFormError" hidden></p>
+
+        <div class="form-actions">
+          <button type="button" class="ghost-btn" id="cancelNewUser">Cancel</button>
+          <button type="submit" class="primary-btn">Add user</button>
         </div>
       </form>
     </section>

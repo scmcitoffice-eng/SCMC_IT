@@ -55,6 +55,82 @@ button, input, select, textarea{
   color: inherit;
 }
 
+/* ---------- Login screen ---------- */
+
+.login-screen{
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background-image:
+    radial-gradient(circle at 15% 0%, rgba(79,209,197,0.08), transparent 40%),
+    radial-gradient(circle at 100% 20%, rgba(79,209,197,0.05), transparent 35%);
+}
+
+.login-card{
+  width: 100%;
+  max-width: 340px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 30px 28px 26px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+}
+
+.login-brand{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.login-sub{
+  margin: 0 0 22px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.login-form{
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.login-submit{
+  width: 100%;
+  margin-top: 4px;
+}
+
+.login-error{
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: var(--red);
+}
+
+.login-hint{
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 11.5px;
+  color: var(--text-faint);
+  text-align: center;
+}
+.login-hint code{
+  font-family: var(--font-mono);
+  background: var(--panel-2);
+  border: 1px solid var(--border-soft);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--accent);
+}
+
+.form-error{
+  margin: -6px 0 0;
+  font-size: 12.5px;
+  color: var(--red);
+}
+
 /* ---------- App shell ---------- */
 
 .app{
@@ -171,6 +247,50 @@ button, input, select, textarea{
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.rail-user{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  margin-bottom: 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+}
+.rail-user-avatar{
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(79,209,197,0.14);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.rail-user-info{
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.rail-user-name{
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rail-user-role{
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 /* ---------- Buttons ---------- */
@@ -367,6 +487,9 @@ select:focus{ border-color: var(--accent); }
 .badge-High{ background: rgba(245,166,35,0.14); color: var(--amber); }
 .badge-Medium{ background: rgba(79,209,197,0.14); color: var(--accent); }
 .badge-Low{ background: rgba(107,118,132,0.16); color: var(--gray); }
+
+.badge-Admin{ background: rgba(245,166,35,0.14); color: var(--amber); }
+.badge-Agent{ background: rgba(79,209,197,0.14); color: var(--accent); }
 
 .badge-Open{ background: rgba(245,166,35,0.14); color: var(--amber); }
 .badge-InProgress{ background: rgba(79,209,197,0.14); color: var(--accent); }
