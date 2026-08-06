@@ -5,6 +5,8 @@
 
 const STORAGE_KEY = 'deskline_tickets';
 const COUNTER_KEY = 'deskline_ticket_counter';
+const USERS_KEY = 'deskline_users';
+const SESSION_KEY = 'deskline_current_user';
 
 const STATUSES = ['Open', 'In Progress', 'Resolved', 'Closed'];
 const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
@@ -15,6 +17,37 @@ const PRIORITY_WEIGHT = { Critical: 3, High: 2, Medium: 1, Low: 0 };
 let tickets = loadTickets();
 let activeDrawerId = null;
 let filters = { status: 'all', priority: 'all', search: '', sort: 'newest' };
+
+/* ---------- Users & auth ---------- */
+
+function loadUsers(){
+  try{
+    const raw = localStorage.getItem(USERS_KEY);
+    let users = raw ? JSON.parse(raw) : [];
+    if (!users.length){
+      users = [{ name: 'IT Admin', username: 'it', password: 'p@ssw0rd', role: 'Admin' }];
+      localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    }
+    return users;
+  }catch(e){
+    console.error('Failed to load users', e);
+    return [{ name: 'IT Admin', username: 'it', password: 'p@ssw0rd', role: 'Admin' }];
+  }
+}
+
+function saveUsers(){
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
+
+function currentUsername(){
+  return sessionStorage.getItem(SESSION_KEY);
+}
+
+function currentUser(){
+  return users.find(u => u.username === currentUsername());
+}
+
+let users = loadUsers();
 
 /* ---------- Persistence ---------- */
 
@@ -170,14 +203,76 @@ function renderAll(){
   renderStats();
 }
 
+/* ---------- Rendering: users ---------- */
+
+function renderUsers(){
+  const tbody = document.getElementById('userTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  for (const u of users){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="cell-requester">${escapeHtml(u.name)}</td>
+      <td class="cell-id">${escapeHtml(u.username)}</td>
+      <td><span class="badge badge-${u.role}"><span class="badge-dot"></span>${u.role}</span></td>
+      <td class="col-actions"><button class="row-action" data-remove-user="${escapeHtml(u.username)}">Remove</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  tbody.querySelectorAll('[data-remove-user]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const uname = btn.dataset.removeUser;
+      if (uname === currentUsername()){
+        alert("You can't remove the account you're currently signed in with.");
+        return;
+      }
+      if (users.length <= 1){
+        alert('At least one user account must remain.');
+        return;
+      }
+      if (!confirm(`Remove user "${uname}"?`)) return;
+      users = users.filter(u => u.username !== uname);
+      saveUsers();
+      renderUsers();
+    });
+  });
+}
+
+function renderRailUser(){
+  const u = currentUser();
+  const nameEl = document.getElementById('railUserName');
+  const roleEl = document.getElementById('railUserRole');
+  if (!nameEl || !roleEl) return;
+  nameEl.textContent = u ? u.name : '—';
+  roleEl.textContent = u ? u.role : '—';
+}
+
+/* ---------- Auth ---------- */
+
+function showLogin(){
+  document.getElementById('loginScreen').hidden = false;
+  document.getElementById('appShell').hidden = true;
+}
+
+function showApp(){
+  document.getElementById('loginScreen').hidden = true;
+  document.getElementById('appShell').hidden = false;
+  renderRailUser();
+  renderAll();
+}
+
 /* ---------- Views ---------- */
 
 function showView(view){
   document.getElementById('view-board').hidden = view !== 'board';
   document.getElementById('view-new').hidden = view !== 'new';
+  document.getElementById('view-users').hidden = view !== 'users';
   document.querySelectorAll('.rail-item').forEach(btn => {
     btn.classList.toggle('is-active', btn.dataset.view === view);
   });
+  if (view === 'users') renderUsers();
 }
 
 /* ---------- Drawer ---------- */
@@ -232,7 +327,59 @@ function currentDrawerTicket(){
 /* ---------- Event wiring ---------- */
 
 document.addEventListener('DOMContentLoaded', () => {
-  renderAll();
+
+  // Auth gate
+  if (currentUsername() && users.some(u => u.username === currentUsername())){
+    showApp();
+  } else {
+    showLogin();
+  }
+
+  document.getElementById('loginForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const username = document.getElementById('loginUsername').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const errorEl = document.getElementById('loginError');
+
+    const match = users.find(u => u.username === username && u.password === password);
+    if (!match){
+      errorEl.textContent = 'Incorrect username or password.';
+      errorEl.hidden = false;
+      return;
+    }
+    errorEl.hidden = true;
+    sessionStorage.setItem(SESSION_KEY, match.username);
+    document.getElementById('loginForm').reset();
+    showView('board');
+    showApp();
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    sessionStorage.removeItem(SESSION_KEY);
+    showLogin();
+  });
+
+  // New user form
+  document.getElementById('userForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = document.getElementById('uName').value.trim();
+    const username = document.getElementById('uUsername').value.trim();
+    const password = document.getElementById('uPassword').value;
+    const role = document.getElementById('uRole').value;
+    const errorEl = document.getElementById('userFormError');
+
+    if (users.some(u => u.username.toLowerCase() === username.toLowerCase())){
+      errorEl.textContent = 'That username is already taken.';
+      errorEl.hidden = false;
+      return;
+    }
+    errorEl.hidden = true;
+
+    users.push({ name, username, password, role });
+    saveUsers();
+    e.target.reset();
+    renderUsers();
+  });
 
   // Nav
   document.querySelectorAll('.rail-item').forEach(btn => {

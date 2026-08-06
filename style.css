@@ -55,6 +55,74 @@ button, input, select, textarea{
   color: inherit;
 }
 
+/* ---------- Login screen ---------- */
+
+.login-screen{
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-card{
+  width: 100%;
+  max-width: 360px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px 28px 28px;
+  box-shadow: 0 30px 60px -20px rgba(0,0,0,0.5);
+}
+
+.login-brand{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.login-brand .brand-mark{ font-size: 17px; }
+.login-brand .brand-name{ font-weight: 800; font-size: 19px; letter-spacing: -0.02em; }
+
+.login-sub{
+  margin: 0 0 22px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.login-form{
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.login-form .field input{
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  outline: none;
+}
+.login-form .field input:focus{ border-color: var(--accent); }
+.login-form .field input::placeholder{ color: var(--text-faint); }
+
+.login-error{
+  margin: -6px 0 0;
+  font-size: 12.5px;
+  color: var(--red);
+}
+
+.login-submit{ width: 100%; margin-top: 4px; }
+
+.login-hint{
+  margin: 18px 0 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  text-align: center;
+}
+
 /* ---------- App shell ---------- */
 
 .app{
@@ -94,6 +162,28 @@ button, input, select, textarea{
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding-left: 23px;
+}
+
+.rail-user{
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+}
+.rail-user-name{
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.rail-user-role{
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent);
 }
 
 .rail-nav{ display: flex; flex-direction: column; gap: 4px; }
@@ -449,6 +539,33 @@ select:focus{ border-color: var(--accent); }
   margin-top: 24px;
   padding-top: 20px;
   border-top: 1px solid var(--border-soft);
+}
+
+/* ---------- Users view ---------- */
+
+.users-layout{
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.users-form{ max-width: none; padding: 24px; }
+.users-form .form-grid{ grid-template-columns: 1fr; }
+
+.user-form-error{
+  margin: -8px 0 0;
+  font-size: 12.5px;
+  color: var(--red);
+}
+
+.users-table-wrap .cell-requester{ color: var(--text); font-weight: 600; }
+
+.badge-Admin{ background: rgba(245,166,35,0.14); color: var(--amber); }
+.badge-Agent{ background: rgba(79,209,197,0.14); color: var(--accent); }
+
+@media (max-width: 980px){
+  .users-layout{ grid-template-columns: 1fr; }
 }
 
 /* ---------- Drawer ---------- */
